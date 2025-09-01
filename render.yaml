@@ -1,0 +1,16 @@
+services:
+  - type: cron
+    name: download-forexfactory
+    env: python
+    plan: free
+    schedule: "0 9 * * 0"   # Tous les dimanches à 09h GMT+3
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python download_forexfactory.py"
+
+  - type: cron
+    name: update-reel
+    env: python
+    plan: free
+    schedule: "*/30 * * * *"   # Toutes les 30 minutes
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python update_reel.py"
