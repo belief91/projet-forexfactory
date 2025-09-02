@@ -1,58 +1,34 @@
-# download_forexfactory.py
-
 import os
 import pandas as pd
 import requests
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
-# ----------------- DEBUG Render -----------------
-print("📂 Contenu du dossier courant :", os.listdir("."))
-print("📂 Contenu du dossier / :", os.listdir("/"))
-print("📂 Contenu du dossier /opt/render/project/src :", os.listdir("/opt/render/project/src"))
-print("✅ credentials.json existe ?", os.path.exists("credentials.json"))
-# ------------------------------------------------
+# === Bloc de debug Render ===
+print("=== DEBUG Render ===")
+print("Chemin courant :", os.getcwd())
+print("Fichiers dans le dossier courant :", os.listdir("."))
+print("====================")
 
-# ⚠️ Mets bien le bon chemin vers ton credentials.json
-CREDENTIALS_FILE = "credentials.json"
-
-# Vérification supplémentaire
-if not os.path.exists(CREDENTIALS_FILE):
-    raise FileNotFoundError(f"❌ Fichier {CREDENTIALS_FILE} introuvable ! Vérifie sur Render.")
-
-# Connexion à Google Sheets
+# Connexion Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
+creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(creds)
 
-# Identifiant Google Sheet
-SHEET_NAME = "Calendrier Économique Forex"
-WORKSHEET_NAME = "Calendrier Économique Forex"
-
-# Accès à la feuille
-sheet = client.open(SHEET_NAME).worksheet(WORKSHEET_NAME)
-
-# ----------------- Exemple simple -----------------
-# Ici on va simuler un téléchargement CSV ForexFactory
-# Tu peux remplacer par ton vrai scraping ou téléchargement
+# Téléchargement du CSV ForexFactory (exemple d’URL, adapte selon ton besoin)
 url = "https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.csv"
-response = requests.get(url)
+r = requests.get(url)
 
-if response.status_code == 200:
-    with open("forexfactory.csv", "wb") as f:
-        f.write(response.content)
-    print("✅ Fichier CSV téléchargé avec succès.")
+with open("forexfactory.csv", "wb") as f:
+    f.write(r.content)
 
-    # Charger le CSV en DataFrame
-    df = pd.read_csv("forexfactory.csv")
+print("✅ Fichier forexfactory.csv téléchargé.")
 
-    # (Optionnel) Afficher un aperçu
-    print(df.head())
+# Lecture et push dans Google Sheets
+df = pd.read_csv("forexfactory.csv")
 
-    # Écrire dans Google Sheets (écrase tout)
-    sheet.clear()
-    sheet.update([df.columns.values.tolist()] + df.values.tolist())
-    print("✅ Google Sheets mis à jour avec succès.")
+# Ton sheet (remplace par ton ID et onglet exacts)
+sheet = client.open("Calendrier Économique Forex").worksheet("Calendrier Économique Forex")
+sheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-else:
-    print(f"❌ Erreur téléchargement CSV ForexFactory : {response.status_code}")
+print("✅ Données envoyées dans Google Sheets avec succès.")
