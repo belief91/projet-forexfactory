@@ -1,34 +1,51 @@
+# download_forexfactory.py
+
 import os
-import pandas as pd
-import requests
+import json
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
-# === Bloc de debug Render ===
-print("=== DEBUG Render ===")
-print("Chemin courant :", os.getcwd())
-print("Fichiers dans le dossier courant :", os.listdir("."))
-print("====================")
+CREDENTIALS_FILE = "credentials.json"
+SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-# Connexion Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-client = gspread.authorize(creds)
+def ensure_credentials():
+    """
+    Vérifie si credentials.json existe.
+    Sinon, essaie de le créer depuis la variable d'environnement GOOGLE_CREDS.
+    """
+    print("🔍 Vérification des credentials...")
 
-# Téléchargement du CSV ForexFactory (exemple d’URL, adapte selon ton besoin)
-url = "https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.csv"
-r = requests.get(url)
+    # Vérifie dans le dossier courant
+    if os.path.exists(CREDENTIALS_FILE):
+        print(f"✅ Fichier {CREDENTIALS_FILE} trouvé.")
+        return CREDENTIALS_FILE
 
-with open("forexfactory.csv", "wb") as f:
-    f.write(r.content)
+    # Sinon, essaie depuis la variable Render
+    creds_env = os.environ.get("GOOGLE_CREDS")
+    if creds_env:
+        print("📦 Variable d'environnement GOOGLE_CREDS trouvée, création du fichier credentials.json...")
+        with open(CREDENTIALS_FILE, "w") as f:
+            f.write(creds_env)
+        print(f"✅ Fichier {CREDENTIALS_FILE} créé avec succès.")
+        return CREDENTIALS_FILE
 
-print("✅ Fichier forexfactory.csv téléchargé.")
+    # Si rien trouvé
+    raise FileNotFoundError("❌ Impossible de trouver credentials.json ni la variable GOOGLE_CREDS.")
 
-# Lecture et push dans Google Sheets
-df = pd.read_csv("forexfactory.csv")
+def main():
+    try:
+        creds_path = ensure_credentials()
+        creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, SCOPE)
+        client = gspread.authorize(creds)
+        print("✅ Connexion Google Sheets réussie !")
 
-# Ton sheet (remplace par ton ID et onglet exacts)
-sheet = client.open("Calendrier Économique Forex").worksheet("Calendrier Économique Forex")
-sheet.update([df.columns.values.tolist()] + df.values.tolist())
+        # Exemple : ouvrir une feuille (remplace par le vrai nom)
+        sheet = client.open("Calendrier Économique Forex").sheet1
+        print("📊 Nom de la première feuille :", sheet.title)
 
-print("✅ Données envoyées dans Google Sheets avec succès.")
+    except Exception as e:
+        print("⚠️ Erreur :", e)
+        raise
+
+if __name__ == "__main__":
+    main()
