@@ -2,50 +2,38 @@
 
 import os
 import json
-from oauth2client.service_account import ServiceAccountCredentials
 import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-CREDENTIALS_FILE = "credentials.json"
-SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
-def ensure_credentials():
+def get_gspread_client():
     """
-    Vérifie si credentials.json existe.
-    Sinon, essaie de le créer depuis la variable d'environnement GOOGLE_CREDS.
+    Charge les credentials depuis la variable d'environnement GOOGLE_CREDS
+    et initialise le client Google Sheets.
     """
-    print("🔍 Vérification des credentials...")
+    creds_env = os.getenv("GOOGLE_CREDS")
+    if not creds_env:
+        raise FileNotFoundError("❌ Variable GOOGLE_CREDS introuvable dans Render.")
 
-    # Vérifie dans le dossier courant
-    if os.path.exists(CREDENTIALS_FILE):
-        print(f"✅ Fichier {CREDENTIALS_FILE} trouvé.")
-        return CREDENTIALS_FILE
+    try:
+        creds_dict = json.loads(creds_env)  # transforme le JSON en dict
+    except json.JSONDecodeError as e:
+        raise ValueError(f"❌ GOOGLE_CREDS n'est pas un JSON valide: {e}")
 
-    # Sinon, essaie depuis la variable Render
-    creds_env = os.environ.get("GOOGLE_CREDS")
-    if creds_env:
-        print("📦 Variable d'environnement GOOGLE_CREDS trouvée, création du fichier credentials.json...")
-        with open(CREDENTIALS_FILE, "w") as f:
-            f.write(creds_env)
-        print(f"✅ Fichier {CREDENTIALS_FILE} créé avec succès.")
-        return CREDENTIALS_FILE
-
-    # Si rien trouvé
-    raise FileNotFoundError("❌ Impossible de trouver credentials.json ni la variable GOOGLE_CREDS.")
+    # Initialiser le client
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+    print("✅ Connexion Google Sheets réussie via GOOGLE_CREDS")
+    return client
 
 def main():
     try:
-        creds_path = ensure_credentials()
-        creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, SCOPE)
-        client = gspread.authorize(creds)
-        print("✅ Connexion Google Sheets réussie !")
-
-        # Exemple : ouvrir une feuille (remplace par le vrai nom)
-        sheet = client.open("Calendrier Économique Forex").sheet1
-        print("📊 Nom de la première feuille :", sheet.title)
-
+        client = get_gspread_client()
+        # test simple : ouvrir ta feuille
+        sheet = client.open("Calendrier Économique Forex").worksheet("Calendrier Économique Forex")
+        print("✅ Feuille trouvée :", sheet.title)
     except Exception as e:
-        print("⚠️ Erreur :", e)
-        raise
+        print("❌ Erreur :", e)
 
 if __name__ == "__main__":
     main()
