@@ -2,83 +2,65 @@
 
 import os
 import json
-import requests
-import csv
 import gspread
+import requests
+import pandas as pd
 from oauth2client.service_account import ServiceAccountCredentials
-from io import StringIO
-from datetime import datetime
 
-SPREADSHEET_NAME = "forex"       # 👈 Ton Google Spreadsheet
-WORKSHEET_NAME = "forex"         # 👈 Ton onglet
+SPREADSHEET_NAME = "forex"
+WORKSHEET_NAME = "forex"
 
-# ============================
-# Connexion Google Sheets
-# ============================
 def get_gspread_client():
+    """Initialise la connexion Google Sheets via GOOGLE_CREDS."""
     creds_env = os.getenv("GOOGLE_CREDS")
     if not creds_env:
         raise FileNotFoundError("❌ Variable GOOGLE_CREDS introuvable dans Render.")
 
-    try:
-        creds_dict = json.loads(creds_env)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"❌ GOOGLE_CREDS n'est pas un JSON valide: {e}")
-
+    creds_dict = json.loads(creds_env)
     scope = ["https://spreadsheets.google.com/feeds",
              "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    print("✅ Connexion Google Sheets réussie via GOOGLE_CREDS")
+    print("✅ Connexion Google Sheets réussie")
     return client
 
-
-# ============================
-# Télécharger le CSV de Forex Factory
-# ============================
 def download_forexfactory_csv():
-    url = "https://cdn-nfs.fxfactory.com/ff_calendar_thisweek.csv"  # CSV hebdo officiel
-    print(f"⬇️ Téléchargement du CSV depuis {url} ...")
-    response = requests.get(url)
-    if response.status_code != 200:
-        raise Exception(f"❌ Erreur téléchargement CSV : {response.status_code}")
-    print("✅ CSV téléchargé avec succès")
-    return response.text
+    """Télécharge le CSV ForexFactory en testant plusieurs URLs alternatives."""
+    urls = [
+        "https://cdn-nfs.forexfactory.net/ff_calendar_thisweek.csv",  # tentative 1
+        "https://www.forexfactory.com/ffcal_week_this.csv"            # tentative 2
+    ]
 
+    for url in urls:
+        try:
+            print(f"⬇️ Tentative de téléchargement : {url}")
+            response = requests.get(url, timeout=15)
+            if response.status_code == 200 and "Event" in response.text:
+                print(f"✅ CSV téléchargé avec succès depuis {url}")
+                return response.text
+            else:
+                print(f"⚠️ Erreur {response.status_code} ou contenu invalide sur {url}")
+        except Exception as e:
+            print(f"⚠️ Échec avec {url} :", e)
 
-# ============================
-# Importer dans Google Sheets
-# ============================
-def import_csv_to_sheets(csv_text, client):
+    raise Exception("❌ Impossible de télécharger le CSV depuis toutes les sources.")
+
+def upload_to_google_sheets(csv_text):
+    """Transforme le CSV en DataFrame puis l’upload dans Google Sheets."""
+    df = pd.read_csv(pd.compat.StringIO(csv_text))
+    client = get_gspread_client()
     sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
-    print(f"📄 Ouverture de la feuille : {SPREADSHEET_NAME}/{WORKSHEET_NAME}")
 
-    # Nettoyer la feuille avant d'importer
     sheet.clear()
-    print("🧹 Feuille nettoyée")
+    sheet.update([df.columns.values.tolist()] + df.values.tolist())
+    print("✅ Données mises à jour dans Google Sheets :", WORKSHEET_NAME)
 
-    # Lire le CSV et pousser ligne par ligne
-    f = StringIO(csv_text)
-    reader = csv.reader(f)
-
-    rows = list(reader)
-    sheet.update("A1", rows)  # upload direct
-    print(f"✅ {len(rows)} lignes importées dans Google Sheets")
-
-
-# ============================
-# Main
-# ============================
 def main():
-    print("🚀 Script démarré :", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     try:
-        client = get_gspread_client()
         csv_text = download_forexfactory_csv()
-        import_csv_to_sheets(csv_text, client)
-        print("🎯 Mise à jour terminée avec succès")
+        upload_to_google_sheets(csv_text)
     except Exception as e:
         print("❌ Erreur lors de l'exécution :", e)
-
 
 if __name__ == "__main__":
     main()
