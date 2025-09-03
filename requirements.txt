@@ -1,6 +1,5 @@
-beautifulsoup4
 pandas
-requests
 gspread
 oauth2client
-
+selenium
+undetected-chromedriver
